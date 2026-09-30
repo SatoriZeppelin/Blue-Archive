@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>校区地点编辑器</title>
+<link rel="stylesheet" href="./map-editor.css">
+<script type="module" src="./map-editor.js"></script>
+</head>
+<body>
+<div class="editor">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">S</span><span>校区地点编辑器</span></div>
+    <div class="top-actions">
+      <span id="save-state" role="status" aria-live="polite">本地保存</span>
+      <button type="button" id="import-button">导入 JSON</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+      <button type="button" id="export-button" class="primary">导出 JSON</button>
+    </div>
+  </header>
+  <main class="workspace">
+    <aside class="sidebar">
+      <div class="side-heading"><span>学校</span><span id="school-count"></span></div>
+      <div id="school-list" class="school-list" role="listbox" aria-label="学校"></div>
+      <div class="side-foot">按学校分别保存选区</div>
+    </aside>
+    <section class="workarea" aria-label="地图画布">
+      <div class="toolbar">
+        <div class="tool-group" role="group" aria-label="选区工具">
+          <button type="button" data-tool="polygon" title="多边形套索 (L)">多边形套索</button>
+          <button type="button" data-tool="freehand" title="自由套索 (F)">自由套索</button>
+          <button type="button" data-tool="rectangle" title="矩形选区 (R)">矩形</button>
+          <button type="button" data-tool="pan" title="平移 (空格)">移动画布</button>
+        </div>
+        <div class="tool-group zoom-controls">
+          <button id="zoom-out" type="button" aria-label="缩小">−</button>
+          <span id="zoom-label">100%</span>
+          <button id="zoom-in" type="button" aria-label="放大">＋</button>
+          <button id="zoom-fit" type="button">适应</button>
+        </div>
+      </div>
+      <div class="canvas-viewport" id="viewport" tabindex="0" aria-label="选取地点的地图区域">
+        <div class="map-plane" id="map-plane">
+          <img id="map-image" alt="" draggable="false">
+          <svg id="map-svg" xmlns="http://www.w3.org/2000/svg" aria-label="地点选区"></svg>
+        </div>
+        <div class="empty-map" id="empty-map" hidden><span>此学校暂无地图</span><label class="upload-button">选择地图<input id="map-upload" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden></label></div>
+      </div>
+      <div id="location-switcher" class="location-switcher" hidden>
+        <button id="location-previous" type="button" aria-label="上一地点">↑</button>
+        <span id="location-name"></span>
+        <button id="location-next" type="button" aria-label="下一地点">↓</button>
+      </div>
+      <div class="statusbar"><span id="map-info"></span><span id="cursor-info">—</span><span id="tool-hint"></span></div>
+    </section>
+    <aside class="inspector">
+      <div class="inspector-head"><span>地点</span><span id="region-count">0</span></div>
+      <div class="add-row"><button id="add-region" type="button" class="primary">＋ 新建地点</button></div>
+      <div id="region-list" class="region-list"></div>
+      <div class="property-panel">
+        <label for="region-name">地点名称</label>
+        <input id="region-name" type="text" placeholder="输入地点名称" autocomplete="off">
+        <label for="region-id">地点 ID</label>
+        <input id="region-id" type="text" placeholder="英文或拼音 ID" autocomplete="off" spellcheck="false">
+        <label for="region-color">选区颜色</label>
+        <input id="region-color" type="color" value="#5dd8f5">
+        <div class="property-actions">
+          <button id="clear-region" type="button">重画选区</button>
+          <button id="delete-region" type="button" class="danger">删除地点</button>
+        </div>
+      </div>
+      <div class="inspector-footer">套索：单击增加节点，双击或按 Enter 闭合。拖动顶点可调整，右键顶点可删除。按 Esc 取消，滚轮缩放，空格拖动画布。</div>
+    </aside>
+  </main>
+</div>
+</body>
+</html>

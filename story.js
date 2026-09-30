@@ -7,6 +7,14 @@ const SAVE_KEY = 'blue-archive:gal:save:1';
 const clone = value => JSON.parse(JSON.stringify(value));
 const canonical = who => aliases[who] || who;
 const isNarration = who => !who || who === '旁白' || who === '旁白。';
+const speakerClubs = Object.freeze({
+  '七神凛': '联邦学生会',
+  '砂狼白子': '阿拜多斯对策委员会',
+  '小鸟游星野': '阿拜多斯对策委员会',
+  '黑见芹香': '阿拜多斯对策委员会',
+  '奥空绫音': '阿拜多斯对策委员会',
+  '十六夜野宫': '阿拜多斯对策委员会'
+});
 
 export function createStory({ touch, onExit }) {
   const get = id => document.getElementById(id);
@@ -16,10 +24,19 @@ export function createStory({ touch, onExit }) {
   const portrait = get('story-portrait');
   const chapter = screen.querySelector('.story-chapter');
   const name = get('story-name');
+  const club = get('story-club');
+  const speaker = get('story-speaker');
   const text = get('story-text');
   const next = get('story-next');
   const dialogue = get('story-dialogue');
   const autoButton = get('story-auto');
+  const toolbar = get('story-toolbar');
+  const toolbarLock = get('story-toolbar-lock');
+  const toolbarHotspot = get('story-toolbar-hotspot');
+  let toolbarLocked = true;
+  let toolbarHideTimer = 0;
+  let pointerOverToolbar = false;
+  let pointerOverHotspot = false;
   const log = get('story-log');
   const logList = get('story-log-list');
   const menu = get('story-menu');
@@ -185,7 +202,9 @@ export function createStory({ touch, onExit }) {
     const line = modules[index];
     const who = canonical(line.who || line.name);
     name.textContent = isNarration(who) ? '' : who;
-    name.hidden = isNarration(who);
+    club.textContent = speakerClubs[who] || '';
+    club.hidden = !club.textContent;
+    speaker.hidden = isNarration(who);
     paintBackground(line.bg || backgroundKey || '联邦学生会');
     paintCg(line.cg);
     preloadNext();
@@ -222,6 +241,23 @@ export function createStory({ touch, onExit }) {
     setAuto(false);
     prompt.hidden = false;
     promptInput.focus();
+  }
+
+  function jumpTo(target) {
+    if (!active || tablet.isOpen() || busy || streaming || !log.hidden || !menu.hidden || !prompt.hidden || !choices.hidden || screen.classList.contains('ui-hidden')) return;
+    if (target < 0 || target >= modules.length || target === index) return;
+    touch(); setAuto(false); stopTimers();
+    index = target;
+    const token = advanceToken + 1;
+    displayLine().then(() => {
+      if (!active || index !== target || advanceToken !== token) return;
+      stopTimers();
+      position = [...modules[index].text].length;
+      text.textContent = modules[index].text;
+      next.hidden = false;
+      if (index === modules.length - 1) showBranches();
+      save();
+    });
   }
 
   function cancelRequest() {
@@ -389,11 +425,46 @@ export function createStory({ touch, onExit }) {
   }
 
   get('story-advance').addEventListener('click', advance);
-  dialogue.addEventListener('click', event => { if (!event.target.closest('.story-extra')) advance(); });
+  dialogue.addEventListener('click', advance);
   dialogue.addEventListener('keydown', event => {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); advance(); }
   });
   autoButton.addEventListener('click', () => { touch(); setAuto(!auto); });
+  function showToolbar() {
+    clearTimeout(toolbarHideTimer);
+    if (!toolbarLocked) toolbar.classList.add('is-awake');
+  }
+  function hideToolbarSoon() {
+    clearTimeout(toolbarHideTimer);
+    if (toolbarLocked || pointerOverToolbar || pointerOverHotspot || toolbar.contains(document.activeElement)) return;
+    toolbarHideTimer = setTimeout(() => {
+      if (!toolbarLocked && !pointerOverToolbar && !pointerOverHotspot && !toolbar.contains(document.activeElement)) toolbar.classList.remove('is-awake');
+    }, 300);
+  }
+  toolbar.addEventListener('pointerenter', () => { pointerOverToolbar = true; showToolbar(); });
+  toolbar.addEventListener('pointerleave', () => { pointerOverToolbar = false; hideToolbarSoon(); });
+  toolbarHotspot.addEventListener('pointerenter', () => { pointerOverHotspot = true; showToolbar(); });
+  toolbarHotspot.addEventListener('pointerleave', () => { pointerOverHotspot = false; hideToolbarSoon(); });
+  toolbarHotspot.addEventListener('pointermove', showToolbar);
+  toolbar.addEventListener('focusin', showToolbar);
+  toolbar.addEventListener('focusout', () => setTimeout(hideToolbarSoon, 0));
+  toolbar.addEventListener('keydown', event => { if (event.key === 'Escape' && !toolbarLocked) { toolbar.blur(); toolbar.classList.remove('is-awake'); } });
+  toolbarLock.addEventListener('click', () => {
+    touch(); toolbarLocked = !toolbarLocked;
+    clearTimeout(toolbarHideTimer);
+    toolbar.classList.toggle('is-auto-hide', !toolbarLocked);
+    toolbar.classList.toggle('is-awake', !toolbarLocked);
+    toolbarLock.setAttribute('aria-pressed', String(toolbarLocked));
+    toolbarLock.setAttribute('aria-label', toolbarLocked ? '锁定工具栏' : '解锁工具栏');
+    toolbarLock.title = toolbarLocked ? '解锁后移开鼠标自动隐藏' : '锁定工具栏';
+    toolbarLock.querySelector('path').setAttribute('d', toolbarLocked ? 'M8 11V8a4 4 0 0 1 8 0v3' : 'M8 11V8a4 4 0 0 1 7.5-1.8');
+    if (!toolbarLocked) { toolbarLock.blur(); pointerOverToolbar = toolbar.matches(':hover'); pointerOverHotspot = toolbarHotspot.matches(':hover'); hideToolbarSoon(); }
+  });
+  get('story-toolbar-save').addEventListener('click', () => { touch(); setStatus(save() ? '已保存' : '保存失败'); });
+  get('story-toolbar-settings').addEventListener('click', () => { touch(); clearTimeout(autoTimer); configButton.click(); });
+  get('story-rewind').addEventListener('click', () => jumpTo(0));
+  get('story-back').addEventListener('click', () => jumpTo(index - 1));
+  get('story-forward').addEventListener('click', advance);
   get('story-skip').addEventListener('click', () => {
     touch(); setAuto(false);
     if (!modules.length) return;
