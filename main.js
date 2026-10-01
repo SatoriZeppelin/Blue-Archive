@@ -8,11 +8,13 @@ bindAssets();
 (() => {
   const overlay = document.getElementById('loading');
   const message = document.getElementById('loading-message');
+  const loadingResource = document.getElementById('loading-resource');
+  const pendingResources = new Map();
   const error = document.getElementById('loading-error');
   const retry = document.getElementById('loading-retry');
   const loadingReady = document.getElementById('loading-ready');
   const video = document.querySelector('.background video');
-  const essentialImages = [document.querySelector('.logo'), document.querySelector('.loading-now')];
+  const essentialImages = [document.querySelector('.logo'), document.querySelector('.loading-now'), document.querySelector('.loading-arona img')];
   const bgm = document.getElementById('title-bgm');
   const titleCall = document.getElementById('title-call');
   const loginSound = document.getElementById('ui-login');
@@ -33,11 +35,13 @@ bindAssets();
   const noticeSuppress = document.getElementById('notice-suppress');
   const noticeTabs = [...noticeOverlay.querySelectorAll('.notice-tab')];
   const noticeContent = document.getElementById('notice-content');
+  const noticeSubtabs = document.querySelector('.notice-subtabs');
   const version = document.getElementById('version').textContent.trim();
   const suppressedVersionKey = `blue-archive:notice:suppressed:${version}`;
   console.info('[Blue Archive][诊断已启用]', { page: location.href, version, assets });
   let noticePending = false;
   let noticeReturnFocus = null;
+  let noticeOpeningTimer;
   let attempt = 0;
   let timer;
   let readyTimer;
@@ -57,9 +61,18 @@ bindAssets();
   let screenReady = false;
   let isStarting = false;
   const assetStates = new Map();
+  const updateLoadingResource = () => {
+    loadingResource.textContent = pendingResources.values().next().value || '';
+  };
   const logAsset = (status, key, url, detail = {}) => {
     const output = `[Blue Archive][资源] ${status}: ${key}`;
     assetStates.set(key, { status, url, ...detail });
+    if (status === '等待') {
+      let file = new URL(url, location.href).pathname.split('/').pop();
+      try { file = decodeURIComponent(file); } catch (_) {}
+      pendingResources.set(key, file);
+    } else pendingResources.delete(key);
+    if (!overlay.classList.contains('hidden')) updateLoadingResource();
     (status === '失败' ? console.error : console.info)(output, { url, ...detail });
   };
 
@@ -197,6 +210,83 @@ bindAssets();
     }
   }
 
+  function prepareLoadingArtwork() {
+    const now = document.querySelector('.loading-now');
+    const wrap = document.querySelector('.loading-now-wrap');
+    const dots = document.querySelector('.loading-now-dots');
+    const heart = document.querySelector('.loading-arona-heart');
+    waitForImage(now).then(() => {
+      if (wrap.classList.contains('has-separated-dots')) return;
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          context.drawImage(image, 0, 0);
+          const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+          const original = new Uint8ClampedArray(pixels.data);
+          const columns = [];
+          for (let x = Math.floor(canvas.width * .72); x < canvas.width; x++) {
+            let count = 0;
+            for (let y = 0; y < canvas.height; y++) if (original[(y * canvas.width + x) * 4 + 3] > 90) count++;
+            if (count >= 3) columns.push(x);
+          }
+          const runs = [];
+          for (const x of columns) {
+            const last = runs.at(-1);
+            if (last && x <= last[1] + 1) last[1] = x;
+            else runs.push([x, x]);
+          }
+          const segments = runs.filter(([a, b]) => b - a >= 5).slice(-3);
+          if (segments.length !== 3 || segments[0][0] < canvas.width * .72) return;
+          const text = document.createElement('canvas');
+          text.width = segments[0][0];
+          text.height = canvas.height;
+          const textContext = text.getContext('2d');
+          textContext.drawImage(image, 0, 0);
+          const croppedText = text.toDataURL('image/png');
+          const dotBottoms = segments.map(([x1, x2]) => {
+            let bottom = 0;
+            for (let y = 0; y < canvas.height; y++) {
+              for (let x = x1; x <= x2; x++) {
+                if (original[(y * canvas.width + x) * 4 + 3] > 90) bottom = y + 1;
+              }
+            }
+            return bottom;
+          });
+          const baseline = Math.max(...dotBottoms);
+          dots.querySelectorAll('span').forEach((dot, index) => {
+            const [x1, x2] = segments[index];
+            const aligned = document.createElement('canvas');
+            aligned.width = x2 - x1 + 1;
+            aligned.height = canvas.height;
+            aligned.getContext('2d').drawImage(image, x1, dotBottoms[index] - baseline, aligned.width, canvas.height, 0, 0, aligned.width, canvas.height);
+            dot.style.backgroundImage = `url("${aligned.toDataURL('image/png')}")`;
+            dot.style.position = 'absolute';
+            dot.style.left = `${(x1 - segments[0][0]) / (canvas.width - segments[0][0]) * 100}%`;
+            dot.style.width = `${(x2 - x1 + 1) / (canvas.width - segments[0][0]) * 100}%`;
+            dot.style.bottom = `${(canvas.height - baseline) / canvas.height * 100}%`;
+          });
+          dots.style.left = `${segments[0][0] / canvas.width * 100}%`;
+          dots.style.width = `${(canvas.width - segments[0][0]) / canvas.width * 100}%`;
+          now.style.width = `${segments[0][0] / canvas.width * 100}%`;
+          now.removeAttribute('data-asset');
+          now.src = croppedText;
+          wrap.classList.add('has-separated-dots');
+          dots.hidden = false;
+        } catch (reason) {
+          console.warn('[Blue Archive][加载图分离失败]', reason);
+        }
+      };
+      image.src = assets.loadingNow;
+    }).catch(() => {});
+    heart.src = assets.loadingArona;
+  }
+  prepareLoadingArtwork();
+
   function waitForImage(image) {
     const key = image.dataset.asset;
     return new Promise((resolve, reject) => {
@@ -225,14 +315,20 @@ bindAssets();
       item.setAttribute('aria-selected', String(active));
     });
     noticeContent.setAttribute('aria-labelledby', tab.id);
-    noticeContent.innerHTML = tab === noticeTabs[0] ? releaseNotes : `<div class="notice-empty">${tab === noticeTabs[1] ? '暂无活动' : '暂无问题'}</div>`;
+    noticeSubtabs.hidden = tab !== noticeTabs[0];
+    noticeContent.innerHTML = tab === noticeTabs[0] ? releaseNotes : `<div class="notice-empty">${tab === noticeTabs[1] ? '暂无活动' : '暂无异常公告'}</div>`;
   }
 
   function openNotice() {
     noticeReturnFocus = document.activeElement;
     try { noticeSuppress.checked = localStorage.getItem(suppressedVersionKey) === '1'; }
     catch (_) { noticeSuppress.checked = false; }
+    clearTimeout(noticeOpeningTimer);
+    noticeOverlay.classList.remove('is-opening');
     noticeOverlay.hidden = false;
+    void noticePanel.offsetWidth;
+    noticeOverlay.classList.add('is-opening');
+    noticeOpeningTimer = setTimeout(() => noticeOverlay.classList.remove('is-opening'), 1050);
     noticePanel.focus();
     noticePending = false;
   }
@@ -242,6 +338,8 @@ bindAssets();
       if (noticeSuppress.checked) localStorage.setItem(suppressedVersionKey, '1');
       else localStorage.removeItem(suppressedVersionKey);
     } catch (_) {}
+    clearTimeout(noticeOpeningTimer);
+    noticeOverlay.classList.remove('is-opening');
     noticeOverlay.hidden = true;
     noticeReturnFocus?.focus?.();
   }
@@ -314,6 +412,7 @@ bindAssets();
     videoAvailable = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
     loadingReady.hidden = true;
     overlay.classList.remove('hidden', 'retry', 'ready');
+    updateLoadingResource();
     error.hidden = true;
     console.info('[Blue Archive][启动] 开始加载', { attempt: current, required: [...essentialImages.map(image => image.dataset.asset), 'titlePoster', 'titleVideo', 'titleCall'], serviceWorker: navigator.serviceWorker?.controller?.scriptURL || null });
     const resources = Promise.all([...essentialImages.map(waitForImage), waitForBackground(), waitForVideo(), waitForAudio(titleCall)]);

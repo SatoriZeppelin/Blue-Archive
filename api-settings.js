@@ -10,6 +10,22 @@ export function createApiSettings() {
   const modelOptions = get('api-model-options');
   let controller = null;
   let focusBefore = null;
+  let activeTab = 'game';
+  const tabs = [...overlay.querySelectorAll('[data-settings-tab]')];
+  const sections = [...overlay.querySelectorAll('[data-settings-section]')];
+
+  function selectTab(id) {
+    if (!tabs.some(tab => tab.dataset.settingsTab === id)) return;
+    activeTab = id;
+    for (const tab of tabs) {
+      const active = tab.dataset.settingsTab === id;
+      tab.classList.toggle('is-active', active);
+      if (active) tab.setAttribute('aria-current', 'page');
+      else tab.removeAttribute('aria-current');
+    }
+    for (const section of sections) section.hidden = section.dataset.settingsSection !== id;
+    overlay.querySelector('.api-settings-content').scrollTop = 0;
+  }
 
   function notify(message) { status.textContent = message || ''; }
 
@@ -72,6 +88,9 @@ export function createApiSettings() {
   function open() {
     focusBefore = document.activeElement;
     render();
+    selectTab('game');
+    get('api-settings-sound').checked = get('sound-toggle').getAttribute('aria-pressed') !== 'true';
+    get('api-settings-fullscreen').checked = Boolean(document.fullscreenElement);
     overlay.hidden = false;
     get('api-settings-close').focus();
   }
@@ -83,6 +102,16 @@ export function createApiSettings() {
     focusBefore?.focus?.();
   }
 
+  for (const tab of tabs) tab.addEventListener('click', () => selectTab(tab.dataset.settingsTab));
+  overlay.querySelectorAll('[data-settings-target]').forEach(button => button.addEventListener('click', () => selectTab(button.dataset.settingsTarget)));
+  get('api-settings-sound').addEventListener('change', event => {
+    const toggle = get('sound-toggle');
+    if (event.target.checked === (toggle.getAttribute('aria-pressed') === 'true')) toggle.click();
+  });
+  get('api-settings-fullscreen').addEventListener('change', event => {
+    if (event.target.checked !== Boolean(document.fullscreenElement)) get('fullscreen-toggle').click();
+  });
+  document.addEventListener('fullscreenchange', () => { get('api-settings-fullscreen').checked = Boolean(document.fullscreenElement); });
   form.addEventListener('submit', event => { event.preventDefault(); save(); });
   profiles.addEventListener('change', () => {
     const store = api.loadStore();

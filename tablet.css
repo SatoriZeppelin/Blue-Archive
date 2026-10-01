@@ -60,6 +60,7 @@
   position: fixed;
   inset: 0;
   z-index: 15;
+  overflow: hidden;
   display: grid;
   place-items: center;
   padding: clamp(7px, 2vw, 20px);
@@ -69,6 +70,9 @@
 }
 .tablet-overlay[hidden] {
   display: none;
+}
+.tablet-overlay.is-closing {
+  pointer-events: none;
 }
 .tablet-frame {
   width: min(1180px, 96vw);
@@ -224,6 +228,15 @@
 .tablet-overlay[data-app="map"] .tablet-content {
   background: #f2f9fbd9;
 }
+.tablet-overlay[data-app="chat"] .tablet-content {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+}
+.tablet-overlay[data-app="chat"] .tablet-header {
+  visibility: hidden;
+}
 .tablet-overlay[data-app="home"] .tablet-content {
   padding: 0;
   overflow: auto;
@@ -244,13 +257,16 @@
   top: 16px;
   right: 18px;
   z-index: 4;
-  padding: 7px 14px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 50%;
   background: #ffffffb8;
   color: #245572;
-  font-size: 14px;
-  font-weight: 700;
+  font: 700 28px/1 Arial, sans-serif;
   cursor: pointer;
 }
 .tablet-app-back {
@@ -724,15 +740,16 @@
 }
 .tablet-map-location-name {
   position: absolute;
-  bottom: 48px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 3px 12px;
-  border-radius: 6px;
-  background: #f3fbfff0;
-  box-shadow: 0 2px 10px #143f5b33;
-  color: #235574;
-  font-size: clamp(17px, 2vw, 23px);
+  z-index: 5;
+  top: clamp(-100px, -11vh, -58px);
+  right: clamp(6px, 1.5vw, 20px);
+  display: grid;
+  place-items: center;
+  min-width: clamp(160px, 25vw, 260px);
+  min-height: clamp(55px, 10vh, 90px);
+  padding: 8px 20px;
+  color: #10253b;
+  font-size: clamp(23px, 3vw, 36px);
   font-weight: 900;
   line-height: 1.2;
   text-align: center;
@@ -875,6 +892,64 @@
 .tablet-action:disabled {
   opacity: 0.55;
   cursor: default;
+}
+.tablet-momo { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: #fff; font-family: "Microsoft YaHei UI", sans-serif; }
+.tablet-momo-header { display: flex; flex: none; align-items: center; justify-content: space-between; height: 56px; padding: 0 17px; background: linear-gradient(#ff829d, #f68ea6); color: #fff; }
+.tablet-momo-title { display: flex; align-items: center; gap: 8px; font-size: clamp(19px, 2.6vw, 28px); font-weight: 900; letter-spacing: -.04em; }
+.tablet-momo-peach { display: inline-block; flex: none; width: 27px; height: 27px; background: url("./resources/tablet/momotalk-logo.png") center / contain no-repeat; }
+.tablet-momo-help { display: grid; place-items: center; width: 23px; height: 26px; border-radius: 3px; background: #fff; color: #f08aa3; font-size: 18px; box-shadow: 0 2px 4px #b8496655; }
+.tablet-momo-close { padding: 0 2px; border: 0; background: transparent; color: #fff; font: 300 43px/1 Arial, sans-serif; cursor: pointer; }
+.tablet-momo-body { display: grid; flex: 1; grid-template-columns: 76px minmax(205px, 46%) minmax(0, 1fr); min-height: 0; }
+.tablet-momo-rail { display: flex; flex-direction: column; background: #506178; }
+.tablet-momo-rail-button { display: grid; place-items: center; height: 82px; border: 0; border-bottom: 1px solid #394c63; background: transparent; color: #a3b1bf; font-size: 29px; cursor: pointer; }
+.tablet-momo-rail-button.active { background: #718395; color: #fff; }
+.tablet-momo-sidebar { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid #d8e1e5; background: #f2f7f9; }
+.tablet-momo-toolbar { display: flex; flex: none; align-items: center; gap: 6px; height: 60px; padding: 0 12px; border-bottom: 1px solid #d1dde3; }
+.tablet-momo-toolbar strong { flex: 1; min-width: 0; white-space: nowrap; font-size: 17px; }
+.tablet-momo-tool { flex: none; height: 36px; padding: 0 10px; border: 0; border-radius: 3px; background: #fff; color: #3d4d5c; box-shadow: 0 2px 4px #7b8e9e44; font: 600 14px "Microsoft YaHei UI", sans-serif; cursor: pointer; }
+.tablet-momo-search { font: 30px/1 Arial, sans-serif; }
+.tablet-momo-search-box { flex: none; width: calc(100% - 20px); margin: 8px 10px; padding: 8px; border: 1px solid #bcd0dc; border-radius: 4px; }
+.tablet-momo-search-box[hidden], .tablet-momo-contact[hidden] { display: none; }
+.tablet-momo-category { flex: none; padding: 8px 13px; border-bottom: 1px solid #d3e0e7; background: #e3f2fa; color: #445664; font-size: 15px; }
+.tablet-momo-category::before { padding-right: 7px; color: #24b4e7; content: "▏"; }
+.tablet-momo-list { overflow: auto; }
+.tablet-momo-contact { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 70px; padding: 7px 13px; border: 0; border-bottom: 1px solid #e0e9ed; background: transparent; color: #3c4650; text-align: left; cursor: pointer; }
+.tablet-momo-contact:hover, .tablet-momo-contact.active { background: #deeff6; }
+.tablet-momo-avatar { display: grid; flex: none; place-items: center; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(145deg, #b9d6e6, #7fa9c1); color: #fff; font-weight: 800; font-size: 20px; }
+.tablet-momo-contact-label { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.tablet-momo-contact-label strong { font-size: 17px; }
+.tablet-momo-contact-label small { overflow: hidden; color: #849199; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.tablet-momo-heart { display: grid; flex: none; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #f4bad4; color: #526070; }
+.tablet-momo-chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #fff; }
+.tablet-momo-empty { display: grid; flex: 1; place-items: center; color: #7b8187; font-size: 18px; }
+.tablet-momo-chat-name { margin: 0; padding: 14px 18px; border-bottom: 1px solid #e4eaed; }
+.tablet-momo-chat .tablet-messages { min-height: 0; padding: 16px; }
+.tablet-momo-chat .tablet-compose { padding: 12px; border-top: 1px solid #e4eaed; }
+.tablet-momo-intro { position: absolute; inset: 0; z-index: 10; overflow: hidden; background: #f88fa6; pointer-events: auto; animation: tablet-momo-cover 1.12s cubic-bezier(.25,.7,.32,1) both; }
+.tablet-momo-opening .tablet-momo { overflow: hidden; }
+.tablet-momo-intro-brand { position: absolute; top: 50%; left: 50%; display: flex; flex-direction: column; align-items: center; gap: 17px; color: #fff; font-size: 36px; font-weight: 900; white-space: nowrap; transform: translate(-50%, -50%); animation: tablet-momo-brand 1.12s cubic-bezier(.25,.7,.32,1) both; pointer-events: none; }
+.tablet-momo-intro-brand .tablet-momo-peach { width: 72px; height: 72px; animation: tablet-momo-brand-piece 1.12s cubic-bezier(.2,.8,.3,1) both; }
+.tablet-momo-intro-name { animation: tablet-momo-brand-piece 1.12s cubic-bezier(.2,.8,.3,1) both; }
+.tablet-momo-opening:not(.tablet-momo-revealing) .tablet-momo-title, .tablet-momo-opening:not(.tablet-momo-revealing) .tablet-momo-rail, .tablet-momo-opening:not(.tablet-momo-revealing) .tablet-momo-sidebar, .tablet-momo-opening:not(.tablet-momo-revealing) .tablet-momo-chat { visibility: hidden; }
+.tablet-momo-revealing .tablet-momo-title .tablet-momo-peach, .tablet-momo-revealing .tablet-momo-title > span:not(.tablet-momo-peach):not(.tablet-momo-help), .tablet-momo-revealing .tablet-momo-help { animation: tablet-momo-component-reveal .3s cubic-bezier(.22,1,.36,1) both; }
+.tablet-momo-revealing .tablet-momo-rail, .tablet-momo-revealing .tablet-momo-sidebar { animation: tablet-momo-list-reveal .3s cubic-bezier(.22,1,.36,1) both; }
+.tablet-momo-revealing .tablet-momo-chat { animation: tablet-momo-chat-reveal .3s ease-out both; }
+@keyframes tablet-momo-cover { 0% { clip-path: inset(100% 0 0 0); } 22%, 53% { clip-path: inset(0 0 0 0); } 100% { clip-path: inset(0 0 calc(100% - 56px) 0); } }
+@keyframes tablet-momo-brand { 0%, 53% { top: 50%; } 100% { top: calc(-1 * (72px + 36px + 17px)); } }
+@keyframes tablet-momo-brand-piece { 0%, 21% { opacity: 0; transform: translateY(13px) scale(.82); } 34%, 100% { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes tablet-momo-component-reveal { from { opacity: 0; transform: translateY(-42px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes tablet-momo-list-reveal { from { opacity: 0; transform: translateX(-38px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes tablet-momo-chat-reveal { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 690px) {
+  .tablet-momo-body { grid-template-columns: 48px minmax(135px, 44%) minmax(0, 1fr); }
+  .tablet-momo-rail-button { height: 65px; font-size: 22px; }
+  .tablet-momo-toolbar { padding: 0 5px; }
+  .tablet-momo-toolbar strong { font-size: 12px; }
+  .tablet-momo-tool { padding: 0 4px; font-size: 11px; }
+  .tablet-momo-contact { gap: 5px; padding: 5px; }
+  .tablet-momo-avatar { width: 32px; height: 32px; font-size: 14px; }
+  .tablet-momo-contact-label strong { font-size: 13px; }
+  .tablet-momo-intro-brand { font-size: 26px; }
 }
 .tablet-split {
   display: grid;
@@ -1090,8 +1165,12 @@
     inset-block: -35px;
   }
   .tablet-map-location-name {
-    bottom: 43px;
-    font-size: clamp(15px, 3vw, 19px);
+    top: -55px;
+    right: 4px;
+    min-width: clamp(110px, 26vw, 170px);
+    min-height: 46px;
+    padding: 5px 10px;
+    font-size: clamp(18px, 3.5vw, 25px);
   }
   .tablet-map-badge-image {
     height: clamp(75px, 20vw, 130px);

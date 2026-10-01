@@ -12,13 +12,13 @@ const schools = [
   ["wildhunt", "狂猎艺术学园"],
   ["shanhaijing", "山海经高级中学"],
   ["odyssey", "奥德赛海洋学园"],
-  ["federal", "D.U.白鸟区（重建后）"],
+  ["federal", "联邦学生会"],
   ["schale", "夏莱"],
 ];
-const availableMaps = new Set(["abydos", "trinity", "gehenna", "millennium-research", "millennium-akihabara", "redwinter", "hyakkiyako", "wildhunt", "shanhaijing", "federal", "federal-shiratori", "schale"]);
+const availableMaps = new Set(["abydos", "trinity", "gehenna", "millennium-research", "millennium-akihabara", "redwinter", "hyakkiyako", "wildhunt", "shanhaijing", "federal-shiratori", "schale"]);
 const schoolLocations = {
   millennium: [["millennium-research", "研究学习区"], ["millennium-akihabara", "春叶原"]],
-  federal: [["federal", "D.U.白鸟区（重建后）"], ["federal-shiratori", "D.U.白鸟区"]],
+  federal: [["federal-shiratori", "D.U.白鸟区"]],
 };
 const key = "ba-map-regions-v1";
 const $ = id => document.getElementById(id);

@@ -101,7 +101,7 @@ export function createTablet({
   let sessions = {};
   let app = "home";
   let aronaVisible = false;
-  let contact = "arona";
+  let contact = null;
   let open = false;
   let busy = false;
   let controller = null;
@@ -112,6 +112,22 @@ export function createTablet({
   let selectedAronaAnimation = "Idle_01";
   let selectedMapSchool = null;
   let mapFlight = null;
+  const tabletFrame = overlay.querySelector(".tablet-frame");
+  let tabletMotion = null;
+  let tabletBackdropMotion = null;
+  let tabletMotionToken = 0;
+  let tabletPhase = "closed";
+  const reducedTabletMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const cancelTabletMotion = () => {
+    tabletMotionToken++;
+    tabletMotion?.cancel();
+    tabletBackdropMotion?.cancel();
+    tabletMotion = null;
+    tabletBackdropMotion = null;
+  };
+  const tabletTravel = () => window.innerWidth + tabletFrame.offsetWidth;
+  const tabletPose = (x, angle = 0) => `translate3d(${x}px, 0, 0) rotate(${angle}deg)`;
+  const tabletOffscreen = (distance) => tabletPose(distance, 6);
   const cancelMapFlight = () => {
     mapFlight?.cancel();
     mapFlight = null;
@@ -130,7 +146,7 @@ export function createTablet({
     sessions = {};
     app = "home";
     aronaVisible = false;
-    contact = "arona";
+    contact = null;
     selectedMapSchool = null;
     if (open) render();
   }
@@ -169,7 +185,7 @@ export function createTablet({
       : "home";
     selectedMapSchool = null;
     aronaVisible = raw?.aronaVisible === true;
-    contact = Object.hasOwn(contacts, raw?.contact) ? raw.contact : "arona";
+    contact = Object.hasOwn(contacts, raw?.contact) ? raw.contact : null;
     if (open) render();
   }
   const snapshot = () => ({
@@ -179,6 +195,53 @@ export function createTablet({
     aronaVisible,
     contact,
   });
+  function animateTablet(opening) {
+    const reduced = reducedTabletMotion();
+    const distance = tabletTravel();
+    const interrupted = tabletPhase === "opening" || tabletPhase === "closing";
+    const from = interrupted
+      ? getComputedStyle(tabletFrame).transform
+      : opening ? tabletOffscreen(distance) : tabletPose(0);
+    const backdropFrom = interrupted
+      ? Number(getComputedStyle(overlay).opacity)
+      : opening ? 0 : 1;
+    cancelTabletMotion();
+    const token = tabletMotionToken;
+    tabletPhase = opening ? "opening" : "closing";
+    overlay.hidden = false;
+    overlay.classList.toggle("is-closing", !opening);
+    tabletFrame.style.transform = opening ? tabletPose(0) : tabletOffscreen(distance);
+    overlay.style.opacity = opening ? "1" : "0";
+    if (reduced) {
+      tabletPhase = opening ? "open" : "closed";
+      overlay.hidden = !opening;
+      tabletFrame.style.removeProperty("transform");
+      overlay.style.removeProperty("opacity");
+      overlay.classList.remove("is-closing");
+      return;
+    }
+    const duration = interrupted ? 360 : 490;
+    tabletMotion = tabletFrame.animate(
+      [{ transform: from }, { transform: tabletFrame.style.transform }],
+      { duration, easing: "cubic-bezier(.4,0,.6,1)", fill: "both" },
+    );
+    tabletBackdropMotion = overlay.animate(
+      [{ opacity: backdropFrom }, { opacity: opening ? 1 : 0 }],
+      { duration, easing: "linear", fill: "both" },
+    );
+    tabletMotion.finished.then(() => {
+      if (token !== tabletMotionToken) return;
+      tabletPhase = opening ? "open" : "closed";
+      if (!opening) overlay.hidden = true;
+      tabletMotion.cancel();
+      tabletBackdropMotion.cancel();
+      tabletMotion = null;
+      tabletBackdropMotion = null;
+      tabletFrame.style.removeProperty("transform");
+      overlay.style.removeProperty("opacity");
+      overlay.classList.remove("is-closing");
+    }).catch(() => {});
+  }
   function openTablet() {
     if (
       open ||
@@ -186,20 +249,25 @@ export function createTablet({
       !get("story-log").hidden ||
       !get("story-menu").hidden ||
       !get("api-settings").hidden
-    )
-      return;
+    ) return;
     onOpen();
     open = true;
     focusBefore = document.activeElement;
-    overlay.hidden = false;
+    if (tabletPhase === "closed") {
+      overlay.hidden = false;
+      tabletFrame.style.transform = tabletOffscreen(tabletTravel());
+      overlay.style.opacity = "0";
+    }
     render();
-    content.querySelector("button")?.focus();
+    animateTablet(true);
+    content.querySelector("button")?.focus({ preventScroll: true });
   }
   function closeTablet() {
     if (!open) return;
     cancelMapFlight();
     appTransition?.finish();
     frameCleanup();
+    stopMomoIntro();
     controller?.abort();
     disposeArona?.();
     disposeArona = null;
@@ -207,17 +275,52 @@ export function createTablet({
     controller = null;
     busy = false;
     open = false;
-    overlay.hidden = true;
     onClose();
     emit();
-    focusBefore?.focus?.();
+    const previousFocus = focusBefore;
+    focusBefore = null;
+    if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    else document.activeElement?.blur?.();
+    animateTablet(false);
   }
   let appTransition = null;
+  let momoIntro = null;
+  const stopMomoIntro = () => {
+    momoIntro?.remove();
+    momoIntro = null;
+    overlay.classList.remove("tablet-momo-opening", "tablet-momo-revealing");
+  };
+  const startMomoIntro = () => {
+    stopMomoIntro();
+    if (reducedTabletMotion()) return;
+    const screen = overlay.querySelector(".tablet-screen");
+    const intro = make("div", "tablet-momo-intro");
+    const brand = make("div", "tablet-momo-intro-brand");
+    brand.append(make("span", "tablet-momo-peach"), make("span", "tablet-momo-intro-name", "MomoTalk"));
+    intro.append(brand);
+    screen.append(intro);
+    overlay.classList.add("tablet-momo-opening");
+    momoIntro = intro;
+    const finish = () => {
+      if (momoIntro !== intro) return;
+      overlay.classList.add("tablet-momo-revealing");
+      intro.remove();
+      momoIntro = null;
+      window.setTimeout(() => {
+        if (app === "chat" && !momoIntro) overlay.classList.remove("tablet-momo-opening", "tablet-momo-revealing");
+      }, 320);
+    };
+    intro.addEventListener("animationend", (event) => {
+      if (event.target === intro) finish();
+    });
+    window.setTimeout(finish, 1180);
+  };
   const frameCleanup = () => overlay.querySelectorAll(".tablet-app-transition-out").forEach((node) => node.remove());
   function switchApp(next, source = null) {
     if (!["home", "map", "chat", "schedule"].includes(next) || !open || next === app) return;
     appTransition?.finish();
     frameCleanup();
+    stopMomoIntro();
     const previous = app;
     const outgoing = content;
     const frame = overlay.querySelector(".tablet-screen");
@@ -244,7 +347,8 @@ export function createTablet({
     selectedMapSchool = null;
     render();
     emit();
-    if (reduced) return;
+    if (next === "chat") startMomoIntro();
+    if (reduced || next === "chat") return;
     if (next !== "home") {
       const mask = `circle(${startRadius}px at ${x}px ${y}px)`;
       const full = `circle(${maxRadius}px at ${x}px ${y}px)`;
@@ -258,7 +362,7 @@ export function createTablet({
   }
   function renderHome() {
     const home = make("div", "tablet-home");
-    const dismiss = button("关闭", closeTablet, "tablet-home-close");
+    const dismiss = button("×", closeTablet, "tablet-home-close");
     dismiss.setAttribute("aria-label", "关闭夏莱平板");
     home.append(dismiss);
     if (aronaVisible) {
@@ -454,7 +558,7 @@ export function createTablet({
       hyakkiyako: [["hyakkiyako", "百鬼夜行联合学园"]],
       shanhaijing: [["shanhaijing", "山海经高级中学"]],
       wildhunt: [["wildhunt", "狂猎艺术学园"]],
-      federal: [["federal", "D.U.白鸟区（重建后）"], ["federal-shiratori", "D.U.白鸟区"]],
+      federal: [["federal-shiratori", "D.U.白鸟区"]],
       schale: [["schale", "夏莱"]],
     };
     const locations = maps[id];
@@ -466,6 +570,7 @@ export function createTablet({
     }
     let current = 0;
     const stage = make("div", "tablet-map-stage");
+    const showLocationName = locations.some(([, label]) => label !== name);
     let locationName = null;
     let mapVersion = 0;
     let transition = null;
@@ -508,7 +613,7 @@ export function createTablet({
         if (direction && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
           locationName.getAnimations().forEach((animation) => animation.cancel());
           locationName.animate(
-            [{ opacity: 0, transform: `translate(-50%, ${direction * 12}px)` }, { opacity: 1, transform: "translate(-50%, 0)" }],
+            [{ opacity: 0, transform: `translateY(${direction * 12}px)` }, { opacity: 1, transform: "translateY(0)" }],
             { duration: 380, easing: "ease-out" },
           );
         }
@@ -539,14 +644,17 @@ export function createTablet({
       }
     };
     detail.append(stage);
+    if (showLocationName) {
+      locationName = make("span", "tablet-map-location-name");
+      detail.append(locationName);
+    }
     if (locations.length > 1) {
       const switcher = make("div", "tablet-map-location-switcher");
-      locationName = make("span", "tablet-map-location-name");
       const previous = button("", () => setLocation(current - 1, -1), "tablet-map-location-arrow tablet-map-location-arrow-up");
       const next = button("", () => setLocation(current + 1, 1), "tablet-map-location-arrow tablet-map-location-arrow-down");
       previous.setAttribute("aria-label", "上一地点");
       next.setAttribute("aria-label", "下一地点");
-      switcher.append(previous, locationName, next);
+      switcher.append(previous, next);
       detail.append(switcher);
     }
     const mountRegions = (regions, frame, image) => {
@@ -728,58 +836,99 @@ export function createTablet({
     }
   }
   function renderChat() {
-    const back = button("←", () => switchApp("home"), "tablet-app-back");
-    back.setAttribute("aria-label", "返回");
-    content.append(back);
-    content.append(make("h2", "", "聊天"));
-    const split = make("div", "tablet-split");
-    const list = make("aside", "tablet-contacts");
+    const shell = make("div", "tablet-momo");
+    const header = make("header", "tablet-momo-header");
+    const title = make("div", "tablet-momo-title");
+    title.append(make("span", "tablet-momo-peach"), make("span", "", "MomoTalk"), make("span", "tablet-momo-help", "?"));
+    const close = button("×", () => switchApp("home"), "tablet-momo-close");
+    close.setAttribute("aria-label", "返回平板首页");
+    header.append(title, close);
+    const body = make("div", "tablet-momo-body");
+    const rail = make("nav", "tablet-momo-rail");
+    const people = make("span", "tablet-momo-rail-button active", "♟");
+    people.setAttribute("aria-label", "联系人");
+    const chats = make("span", "tablet-momo-rail-button", "▰");
+    chats.setAttribute("aria-label", "聊天");
+    rail.append(people, chats);
+    const sidebar = make("aside", "tablet-momo-sidebar");
+    const toolbar = make("div", "tablet-momo-toolbar");
+    toolbar.append(make("strong", "", `生徒 (${Object.keys(contacts).length})`));
+    const searchBox = make("input", "tablet-momo-search-box");
+    searchBox.type = "search";
+    searchBox.placeholder = "搜索生徒";
+    searchBox.setAttribute("aria-label", "搜索生徒");
+    searchBox.hidden = true;
+    let sortReversed = false;
+    const list = make("div", "tablet-momo-list");
+    const filterContacts = () => {
+      const query = searchBox.value.trim().toLowerCase();
+      [...list.children].sort((a, b) => {
+        const result = a.dataset.name.localeCompare(b.dataset.name, "zh-CN");
+        return sortReversed ? -result : result;
+      }).forEach((node) => list.append(node));
+      for (const node of list.children) node.hidden = !node.dataset.name.toLowerCase().includes(query);
+    };
+    searchBox.addEventListener("input", filterContacts);
+    const search = button("⌕", () => {
+      searchBox.hidden = !searchBox.hidden;
+      if (!searchBox.hidden) searchBox.focus();
+      else { searchBox.value = ""; filterContacts(); }
+    }, "tablet-momo-tool tablet-momo-search");
+    search.setAttribute("aria-label", "搜索联系人");
+    const order = button("名称 ▾", () => {
+      sortReversed = !sortReversed;
+      order.textContent = sortReversed ? "名称 ▴" : "名称 ▾";
+      filterContacts();
+    }, "tablet-momo-tool tablet-momo-sort");
+    order.setAttribute("aria-label", "切换联系人排序");
+    toolbar.append(search, order);
     for (const [id, name] of Object.entries(contacts)) {
-      const entry = button(
-        name,
-        () => {
-          contact = id;
-          render();
-          emit();
-        },
-        id === contact ? "active" : "",
-      );
+      const entry = button("", () => {
+        contact = id;
+        render();
+        emit();
+      }, `tablet-momo-contact${id === contact ? " active" : ""}`);
+      entry.dataset.name = name;
+      const avatar = make("span", "tablet-momo-avatar", name.slice(0, 1));
+      const label = make("span", "tablet-momo-contact-label");
+      label.append(make("strong", "", name), make("small", "", (sessions[id] || []).at(-1)?.content || ""));
+      entry.append(avatar, label);
+      if ((sessions[id] || []).length) entry.append(make("span", "tablet-momo-heart", "1"));
       list.append(entry);
     }
-    const chat = make("section", "tablet-chat");
-    chat.append(make("h3", "", contacts[contact]));
-    const messages = make("div", "tablet-messages");
-    messages.setAttribute("aria-live", "polite");
-    for (const message of sessions[contact] || [])
-      messages.append(
-        make(
-          "div",
-          `tablet-message${message.role === "user" ? " mine" : ""}`,
-          message.content,
-        ),
-      );
-    if (busy) messages.append(make("div", "tablet-message", "正在回复…"));
-    chat.append(messages);
-    if (chatError) chat.append(make("p", "tablet-error", chatError));
-    const form = make("form", "tablet-compose");
-    const input = make("input");
-    input.type = "text";
-    input.maxLength = 600;
-    input.placeholder = `发送给${contacts[contact]}`;
-    input.setAttribute("aria-label", "聊天消息");
-    input.disabled = busy;
-    const send = make("button", "tablet-action", "发送");
-    send.type = "submit";
-    send.disabled = busy;
-    form.append(input, send);
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      sendMessage(input.value);
-    });
-    chat.append(form);
-    split.append(list, chat);
-    content.append(split);
-    messages.scrollTop = messages.scrollHeight;
+    sidebar.append(toolbar, searchBox, make("div", "tablet-momo-category", "全生徒"), list);
+    const chat = make("section", "tablet-momo-chat");
+    if (!contact) chat.append(make("div", "tablet-momo-empty", "请选择生徒"));
+    else {
+      chat.append(make("h3", "tablet-momo-chat-name", contacts[contact]));
+      const messages = make("div", "tablet-messages");
+      messages.setAttribute("aria-live", "polite");
+      for (const message of sessions[contact] || [])
+        messages.append(make("div", `tablet-message${message.role === "user" ? " mine" : ""}`, message.content));
+      if (busy) messages.append(make("div", "tablet-message", "正在回复…"));
+      chat.append(messages);
+      if (chatError) chat.append(make("p", "tablet-error", chatError));
+      const form = make("form", "tablet-compose");
+      const input = make("input");
+      input.type = "text";
+      input.maxLength = 600;
+      input.placeholder = `发送给${contacts[contact]}`;
+      input.setAttribute("aria-label", "聊天消息");
+      input.disabled = busy;
+      const send = make("button", "tablet-action", "发送");
+      send.type = "submit";
+      send.disabled = busy;
+      form.append(input, send);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        sendMessage(input.value);
+      });
+      chat.append(form);
+      requestAnimationFrame(() => { messages.scrollTop = messages.scrollHeight; });
+    }
+    body.append(rail, sidebar, chat);
+    shell.append(header, body);
+    content.append(shell);
   }
   function render() {
     cancelMapFlight();
